@@ -16,7 +16,7 @@
           box-shadow:0 4px 18px rgba(0,0,0,.3); }
   label { display:block; font-size:13px; color:var(--muted); margin:14px 0 6px; }
   label:first-child { margin-top:0; }
-  input[type=number] { width:100%; padding:11px 12px; border-radius:9px; border:1px solid #2c313c;
+  input[type=number], input[type=time] { width:100%; padding:11px 12px; border-radius:9px; border:1px solid #2c313c;
           background:#11141a; color:var(--txt); font-size:16px; }
   .row { display:flex; gap:10px; }
   .row > div { flex:1; }
@@ -47,14 +47,15 @@
     <div class="status"><span id="dot" class="dot"></span><span id="connText">Connecting…</span></div>
     <div class="kv"><span>Node</span><b id="boardState">—</b></div>
     <div class="kv"><span>Signal</span><b id="rssi">—</b></div>
+    <div class="kv"><span>Auto-stop</span><b id="stopState">off</b></div>
   </div>
 
   <!-- Controls -->
   <div class="card">
     <div class="row">
       <div>
-        <label>Interval (seconds)</label>
-        <input id="interval" type="number" min="0.2" step="0.1" value="5" />
+        <label>Interval (minutes)</label>
+        <input id="interval" type="number" min="0.1" step="0.1" value="5" />
       </div>
       <div>
         <label>Angle (°)</label>
@@ -62,19 +63,8 @@
       </div>
     </div>
 
-    <details>
-      <summary>Advanced</summary>
-      <div class="row">
-        <div>
-          <label>Hold (ms)</label>
-          <input id="hold" type="number" min="50" step="10" value="200" />
-        </div>
-        <div>
-          <label>Rest (°)</label>
-          <input id="rest" type="number" min="0" max="180" value="90" />
-        </div>
-      </div>
-    </details>
+    <label>Auto-stop at (optional — leave blank to run until you press Stop)</label>
+    <input id="stopAt" type="time" />
 
     <button class="send" onclick="sendConfig()">Apply settings</button>
     <button class="test" onclick="trigger()">Trigger once</button>
@@ -128,25 +118,39 @@
     $("boardState").textContent = s.running ? "RUNNING ▶" : "stopped";
     if (s.rssi !== undefined) $("rssi").textContent = s.rssi + " dBm";
     // Reflect the node's actual values into the inputs
-    if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 1000);
+    if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 60000);
     if (s.angle      !== undefined) $("angle").value    = s.angle;
-    if (s.holdMs     !== undefined) $("hold").value     = s.holdMs;
-    if (s.rest       !== undefined) $("rest").value     = s.rest;
+    if (s.stopAt && s.stopAt > 0) {
+      const d = new Date(s.stopAt * 1000);
+      $("stopState").textContent = d.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit'});
+    } else {
+      $("stopState").textContent = "off";
+    }
   });
 
   function configPayload() {
     return {
-      intervalMs: Math.round(parseFloat($("interval").value) * 1000),
+      intervalMs: Math.round(parseFloat($("interval").value) * 60000),  // minutes -> ms
       angle:      parseInt($("angle").value, 10),
-      rest:       parseInt($("rest").value, 10),
-      holdMs:     parseInt($("hold").value, 10),
     };
   }
   function pub(obj) { client.publish(TOPIC_CMD, JSON.stringify(obj)); }
 
+  // Turn the "Auto-stop at" time field into an absolute epoch (seconds).
+  // If the chosen time has already passed today, roll to tomorrow.
+  function computeStopAt() {
+    const t = $("stopAt").value;          // "HH:MM" or ""
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+    return Math.floor(d.getTime() / 1000);
+  }
+
   function sendConfig()   { pub(configPayload()); }
   function trigger()      { pub({ ...configPayload(), trigger: true }); }
-  function setRunning(on) { pub({ ...configPayload(), running: on }); }
+  function setRunning(on) { pub({ ...configPayload(), running: on, stopAt: on ? computeStopAt() : 0 }); }
 </script>
 </body>
 </html>
