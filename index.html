@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Orbit</title>
+<style>
+  :root { --bg:#0f1115; --card:#1a1d24; --acc:#4f8cff; --ok:#33d17a; --bad:#ff5a5a; --txt:#e7eaf0; --muted:#8b93a3; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--txt); display:flex; justify-content:center; padding:24px; }
+  .wrap { width:100%; max-width:440px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:18px; }
+  .card { background:var(--card); border-radius:14px; padding:18px; margin-bottom:16px;
+          box-shadow:0 4px 18px rgba(0,0,0,.3); }
+  label { display:block; font-size:13px; color:var(--muted); margin:14px 0 6px; }
+  label:first-child { margin-top:0; }
+  input[type=number] { width:100%; padding:11px 12px; border-radius:9px; border:1px solid #2c313c;
+          background:#11141a; color:var(--txt); font-size:16px; }
+  .row { display:flex; gap:10px; }
+  .row > div { flex:1; }
+  button { width:100%; border:0; border-radius:10px; padding:13px; font-size:15px; font-weight:600;
+           color:#fff; cursor:pointer; margin-top:10px; transition:filter .15s; }
+  button:hover { filter:brightness(1.1); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .start { background:var(--ok); }
+  .stop  { background:var(--bad); }
+  .test  { background:#374151; }
+  .send  { background:var(--acc); }
+  .status { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
+  .dot.on { background:var(--ok); }
+  .kv { display:flex; justify-content:space-between; font-size:13px; color:var(--muted); padding:3px 0; }
+  .kv b { color:var(--txt); font-weight:600; }
+  details { margin-top:8px; }
+  summary { cursor:pointer; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Orbit</h1>
+  <div class="sub">Node controller</div>
+
+  <!-- Connection -->
+  <div class="card">
+    <div class="status"><span id="dot" class="dot"></span><span id="connText">Connecting…</span></div>
+    <div class="kv"><span>Node</span><b id="boardState">—</b></div>
+    <div class="kv"><span>Signal</span><b id="rssi">—</b></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Interval (seconds)</label>
+        <input id="interval" type="number" min="0.2" step="0.1" value="5" />
+      </div>
+      <div>
+        <label>Angle (°)</label>
+        <input id="angle" type="number" min="0" max="180" value="60" />
+      </div>
+    </div>
+
+    <details>
+      <summary>Advanced</summary>
+      <div class="row">
+        <div>
+          <label>Hold (ms)</label>
+          <input id="hold" type="number" min="50" step="10" value="200" />
+        </div>
+        <div>
+          <label>Rest (°)</label>
+          <input id="rest" type="number" min="0" max="180" value="0" />
+        </div>
+      </div>
+    </details>
+
+    <button class="send" onclick="sendConfig()">Apply settings</button>
+    <button class="test" onclick="trigger()">Trigger once</button>
+
+    <div class="row" style="margin-top:6px;">
+      <div><button class="start" onclick="setRunning(true)">▶ Start</button></div>
+      <div><button class="stop"  onclick="setRunning(false)">■ Stop</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- client -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+<script>
+  // ===== CONFIG — must match the node =====
+  const HOST  = "e258e4afe426452d967a84e28ee660c9.s1.eu.hivemq.cloud";
+  const PORT  = 8884;                       // WebSocket-Secure port
+  const USER  = "webpage";
+  const PASS  = "P£0'c1W5~,-z";
+  const TOPIC_CMD   = "orbit/7q3m9k/cmd";
+  const TOPIC_STATE = "orbit/7q3m9k/state";
+  // ========================================
+
+  const url = `wss://${HOST}:${PORT}/mqtt`;
+  const client = mqtt.connect(url, {
+    username: USER,
+    password: PASS,
+    clientId: "ctrl-" + Math.random().toString(16).slice(2, 8),
+    reconnectPeriod: 2000,
+  });
+
+  const $ = id => document.getElementById(id);
+
+  client.on("connect", () => {
+    $("dot").classList.add("on");
+    $("connText").textContent = "Connected";
+    client.subscribe(TOPIC_STATE);
+  });
+  client.on("reconnect", () => { $("connText").textContent = "Reconnecting…"; });
+  client.on("close", () => {
+    $("dot").classList.remove("on");
+    $("connText").textContent = "Disconnected";
+  });
+  client.on("error", e => { $("connText").textContent = "Error: " + e.message; });
+
+  client.on("message", (topic, msg) => {
+    if (topic !== TOPIC_STATE) return;
+    let s;
+    try { s = JSON.parse(msg.toString()); } catch { return; }
+    if (s.online === false) { $("boardState").textContent = "OFFLINE"; return; }
+    $("boardState").textContent = s.running ? "RUNNING ▶" : "stopped";
+    if (s.rssi !== undefined) $("rssi").textContent = s.rssi + " dBm";
+    // Reflect the node's actual values into the inputs
+    if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 1000);
+    if (s.angle      !== undefined) $("angle").value    = s.angle;
+    if (s.holdMs     !== undefined) $("hold").value     = s.holdMs;
+    if (s.rest       !== undefined) $("rest").value     = s.rest;
+  });
+
+  function configPayload() {
+    return {
+      intervalMs: Math.round(parseFloat($("interval").value) * 1000),
+      angle:      parseInt($("angle").value, 10),
+      rest:       parseInt($("rest").value, 10),
+      holdMs:     parseInt($("hold").value, 10),
+    };
+  }
+  function pub(obj) { client.publish(TOPIC_CMD, JSON.stringify(obj)); }
+
+  function sendConfig()   { pub(configPayload()); }
+  function trigger()      { pub({ ...configPayload(), trigger: true }); }
+  function setRunning(on) { pub({ ...configPayload(), running: on }); }
+</script>
+</body>
+</html>
