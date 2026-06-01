@@ -44,8 +44,8 @@
 <div class="wrap">
   <!-- Connection -->
   <div class="card">
-    <div class="status"><span id="dot" class="dot"></span><span id="connText">Connecting…</span></div>
-    <div class="kv"><span>Node</span><b id="boardState">—</b></div>
+    <div class="status"><span id="dot" class="dot"></span><span>Cloud</span></div>
+    <div class="status" style="margin-top:10px;"><span id="nodeDot" class="dot"></span><span id="boardState">—</span></div>
   </div>
 
   <!-- Controls -->
@@ -104,27 +104,24 @@
 
   client.on("connect", () => {
     $("dot").classList.add("on");
-    $("connText").textContent = "Connected";
     client.subscribe(TOPIC_STATE);
   });
-  client.on("reconnect", () => { $("connText").textContent = "Reconnecting…"; });
-  client.on("close", () => {
-    $("dot").classList.remove("on");
-    $("connText").textContent = "Disconnected";
-  });
-  client.on("error", e => { $("connText").textContent = "Error: " + e.message; });
+  client.on("reconnect", () => { $("dot").classList.remove("on"); });
+  client.on("close",     () => { $("dot").classList.remove("on"); });
+  client.on("error",     () => { $("dot").classList.remove("on"); });
 
   client.on("message", (topic, msg) => {
     if (topic !== TOPIC_STATE) return;
     let s;
     try { s = JSON.parse(msg.toString()); } catch { return; }
-    if (s.online === false) { $("boardState").textContent = "OFFLINE"; return; }
-    isRunning = !!s.running;
-    if (s.workday) {
-      $("boardState").textContent = "WORKDAY" + (s.phase ? " · " + s.phase : "");
-    } else {
-      $("boardState").textContent = isRunning ? "RUNNING ▶" : "stopped";
+    if (s.online === false) {
+      $("boardState").textContent = "offline";
+      $("nodeDot").classList.remove("on");
+      return;
     }
+    isRunning = !!s.running;
+    $("boardState").textContent = isRunning ? "running" : "stopped";
+    $("nodeDot").classList.toggle("on", isRunning);
     const tb = $("toggleBtn");
     tb.textContent = isRunning ? "■ Stop" : "▶ Start";
     tb.className   = isRunning ? "stop" : "start";
