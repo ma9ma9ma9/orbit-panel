@@ -164,17 +164,29 @@
 
   function sendConfig() { pub(configPayload()); }
 
-  // Start = hand the device today's work-window boundaries and let it run the
+  // Start = hand the device the work-window boundaries and let it run the
   // rhythm itself (jittered cadence, lunch pause, breaks, auto clock-out).
+  const DAY = 86400;
   function startWorkday() {
+    const now = Math.floor(Date.now() / 1000);
+    let ws = timeToEpochToday($("workStart").value, "09:00");
+    let we = timeToEpochToday($("workEnd").value,   "17:00");
+    let ls = timeToEpochToday("12:00");
+    let le = timeToEpochToday("13:00");
+    if (we <= ws) we += DAY;             // end before start -> overnight window
+    if (we <= now) {                     // whole window already passed today...
+      ws += DAY; we += DAY;              // ...so schedule it for tomorrow
+      ls += DAY; le += DAY;
+    }
+    if (le <= ls || le < ws || ls > we) { ls = 0; le = 0; }  // no lunch if it falls outside the window
     pub({
-      ...configPayload(),                                  // cadence + angle
+      ...configPayload(),                // cadence + angle
       workday: true,
       running: true,
-      workStart:  timeToEpochToday($("workStart").value, "09:00"),
-      workEnd:    timeToEpochToday($("workEnd").value,   "17:00"),
-      lunchStart: timeToEpochToday("12:00"),
-      lunchEnd:   timeToEpochToday("13:00"),
+      workStart: ws,
+      workEnd:   we,
+      lunchStart: ls,
+      lunchEnd:   le,
     });
   }
 
