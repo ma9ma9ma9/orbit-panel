@@ -28,6 +28,9 @@
   .stop  { background:var(--bad); }
   .test  { background:#374151; }
   .send  { background:var(--acc); }
+  .timefield { display:flex; gap:6px; }
+  .timefield input { flex:1; }
+  .nowbtn { width:auto; margin:0; padding:0 14px; font-size:13px; background:#374151; white-space:nowrap; }
   .status { display:flex; align-items:center; gap:8px; font-size:13px; }
   .dot { width:10px; height:10px; border-radius:50%; background:var(--bad); }
   .dot.on { background:var(--ok); }
@@ -66,7 +69,10 @@
     <div class="row">
       <div>
         <label>Work start</label>
-        <input id="workStart" type="time" value="09:00" />
+        <div class="timefield">
+          <input id="workStart" type="time" />
+          <button type="button" class="nowbtn" onclick="setStartNow()">Now</button>
+        </div>
       </div>
       <div>
         <label>Work end</label>
@@ -191,6 +197,14 @@
   }
 
   function stopRun() { pub({ running: false, workday: false }); }
+
+  // "Now" affordance for Work start — set the field to the current minute.
+  function setStartNow() {
+    const d = new Date();
+    $("workStart").value =
+      String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  }
+  setStartNow();   // default Work start to "now" on page load
 </script>
 </body>
 </html>
