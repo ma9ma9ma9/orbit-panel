@@ -47,7 +47,7 @@
     <div class="status"><span id="dot" class="dot"></span><span id="connText">Connecting…</span></div>
     <div class="kv"><span>Node</span><b id="boardState">—</b></div>
     <div class="kv"><span>Signal</span><b id="rssi">—</b></div>
-    <div class="kv"><span>Auto-stop</span><b id="stopState">off</b></div>
+    <div class="kv"><span>Schedule</span><b id="stopState">off</b></div>
   </div>
 
   <!-- Controls -->
@@ -63,19 +63,6 @@
       </div>
     </div>
 
-    <label>Auto-stop at (optional — leave blank to run until you press Stop)</label>
-    <input id="stopAt" type="time" />
-
-    <button class="send" onclick="sendConfig()">Apply settings</button>
-
-    <div class="row" style="margin-top:6px;">
-      <div><button class="start" onclick="setRunning(true)">▶ Start</button></div>
-      <div><button class="stop"  onclick="setRunning(false)">■ Stop</button></div>
-    </div>
-  </div>
-
-  <!-- Workday -->
-  <div class="card">
     <div class="row">
       <div>
         <label>Work start</label>
@@ -86,9 +73,16 @@
         <input id="workEnd" type="time" value="17:00" />
       </div>
     </div>
-    <button class="send" onclick="startWorkday()">▶ Simulate workday</button>
-    <div class="sub" style="margin:10px 0 0;">
-      Runs a natural rhythm for the day: jittered cadence, a lunch pause
+
+    <button class="send" onclick="sendConfig()">Apply settings</button>
+
+    <div class="row" style="margin-top:6px;">
+      <div><button class="start" onclick="startWorkday()">▶ Start</button></div>
+      <div><button class="stop"  onclick="stopRun()">■ Stop</button></div>
+    </div>
+
+    <div class="sub" style="margin:14px 0 0;">
+      Start runs a natural rhythm for the day: jittered cadence, a lunch pause
       (12:00–13:00) and occasional short breaks, then stops on its own at
       Work end. Keeps going even if you close this page.
     </div>
@@ -145,10 +139,7 @@
     if (s.angle      !== undefined) $("angle").value    = s.angle;
     const hhmm = ep => new Date(ep * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
     if (s.workday && s.workEnd > 0) {
-      $("stopState").textContent = "workday until " + hhmm(s.workEnd);
-    } else if (s.stopAt && s.stopAt > 0) {
-      const d = new Date(s.stopAt * 1000);
-      $("stopState").textContent = d.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit'});
+      $("stopState").textContent = hhmm(s.workStart) + "–" + hhmm(s.workEnd);
     } else {
       $("stopState").textContent = "off";
     }
@@ -162,18 +153,6 @@
   }
   function pub(obj) { client.publish(TOPIC_CMD, JSON.stringify(obj)); }
 
-  // Turn the "Auto-stop at" time field into an absolute epoch (seconds).
-  // If the chosen time has already passed today, roll to tomorrow.
-  function computeStopAt() {
-    const t = $("stopAt").value;          // "HH:MM" or ""
-    if (!t) return 0;
-    const [h, m] = t.split(":").map(Number);
-    const d = new Date();
-    d.setHours(h, m, 0, 0);
-    if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
-    return Math.floor(d.getTime() / 1000);
-  }
-
   // Turn an "HH:MM" field into an absolute epoch (seconds) for today, in the
   // browser's local timezone. The device just compares epochs — no TZ math on it.
   function timeToEpochToday(hhmm, fallback) {
@@ -183,11 +162,10 @@
     return Math.floor(d.getTime() / 1000);
   }
 
-  function sendConfig()   { pub(configPayload()); }
-  function trigger()      { pub({ ...configPayload(), trigger: true }); }
-  function setRunning(on) { pub({ ...configPayload(), running: on, workday: false, stopAt: on ? computeStopAt() : 0 }); }
+  function sendConfig() { pub(configPayload()); }
 
-  // Hand the device today's work-window boundaries and let it run the rhythm.
+  // Start = hand the device today's work-window boundaries and let it run the
+  // rhythm itself (jittered cadence, lunch pause, breaks, auto clock-out).
   function startWorkday() {
     pub({
       ...configPayload(),                                  // cadence + angle
@@ -197,9 +175,10 @@
       workEnd:    timeToEpochToday($("workEnd").value,   "17:00"),
       lunchStart: timeToEpochToday("12:00"),
       lunchEnd:   timeToEpochToday("13:00"),
-      stopAt: 0,                                           // workEnd is the stop
     });
   }
+
+  function stopRun() { pub({ running: false, workday: false }); }
 </script>
 </body>
 </html>
