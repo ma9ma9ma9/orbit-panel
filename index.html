@@ -49,8 +49,6 @@
   <div class="card">
     <div class="status"><span id="dot" class="dot"></span><span id="connText">Connecting…</span></div>
     <div class="kv"><span>Node</span><b id="boardState">—</b></div>
-    <div class="kv"><span>Signal</span><b id="rssi">—</b></div>
-    <div class="kv"><span>Schedule</span><b id="stopState">off</b></div>
   </div>
 
   <!-- Controls -->
@@ -140,16 +138,9 @@
     const tb = $("toggleBtn");
     tb.textContent = isRunning ? "■ Stop" : "▶ Start";
     tb.className   = isRunning ? "stop" : "start";
-    if (s.rssi !== undefined) $("rssi").textContent = s.rssi + " dBm";
     // Reflect the node's actual values into the inputs
     if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 60000);
     if (s.angle      !== undefined) $("angle").value    = s.angle;
-    const hhmm = ep => new Date(ep * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-    if (s.workday && s.workEnd > 0) {
-      $("stopState").textContent = hhmm(s.workStart) + "–" + hhmm(s.workEnd);
-    } else {
-      $("stopState").textContent = "off";
-    }
   });
 
   function configPayload() {
