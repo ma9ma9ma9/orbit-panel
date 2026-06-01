@@ -80,12 +80,7 @@
       </div>
     </div>
 
-    <button class="send" onclick="sendConfig()">Apply settings</button>
-
-    <div class="row" style="margin-top:6px;">
-      <div><button class="start" onclick="startWorkday()">▶ Start</button></div>
-      <div><button class="stop"  onclick="stopRun()">■ Stop</button></div>
-    </div>
+    <button id="toggleBtn" class="start" onclick="toggle()">▶ Start</button>
 
     <div class="sub" style="margin:14px 0 0;">
       Start mimics a real workday: keeps the computer awake (tapping at your
@@ -117,6 +112,7 @@
   });
 
   const $ = id => document.getElementById(id);
+  let isRunning = false;   // mirrors the node; drives the Start/Stop toggle
 
   client.on("connect", () => {
     $("dot").classList.add("on");
@@ -135,11 +131,15 @@
     let s;
     try { s = JSON.parse(msg.toString()); } catch { return; }
     if (s.online === false) { $("boardState").textContent = "OFFLINE"; return; }
+    isRunning = !!s.running;
     if (s.workday) {
       $("boardState").textContent = "WORKDAY" + (s.phase ? " · " + s.phase : "");
     } else {
-      $("boardState").textContent = s.running ? "RUNNING ▶" : "stopped";
+      $("boardState").textContent = isRunning ? "RUNNING ▶" : "stopped";
     }
+    const tb = $("toggleBtn");
+    tb.textContent = isRunning ? "■ Stop" : "▶ Start";
+    tb.className   = isRunning ? "stop" : "start";
     if (s.rssi !== undefined) $("rssi").textContent = s.rssi + " dBm";
     // Reflect the node's actual values into the inputs
     if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 60000);
@@ -169,10 +169,8 @@
     return Math.floor(d.getTime() / 1000);
   }
 
-  function sendConfig() { pub(configPayload()); }
-
-  // Start = hand the device the work-window boundaries and let it run the
-  // rhythm itself (jittered cadence, lunch pause, breaks, auto clock-out).
+  // Start = hand the device the current settings + work-window boundaries and
+  // let it run the rhythm itself (work stretches, sleep breaks, lunch, auto stop).
   const DAY = 86400;
   function startWorkday() {
     const now = Math.floor(Date.now() / 1000);
@@ -198,6 +196,9 @@
   }
 
   function stopRun() { pub({ running: false, workday: false }); }
+
+  // Single button: Start when idle, Stop when running.
+  function toggle() { if (isRunning) stopRun(); else startWorkday(); }
 
   // "Now" affordance for Work start — set the field to the current minute.
   function setStartNow() {
