@@ -46,7 +46,7 @@
   <div class="card">
     <div class="status"><span id="dot" class="dot"></span><span>Cloud</span></div>
     <div class="status" style="margin-top:10px;"><span id="espDot" class="dot"></span><span>ESP32</span></div>
-    <div class="status" style="margin-top:10px;"><span id="nodeDot" class="dot"></span><span id="boardState">—</span></div>
+    <div class="status" style="margin-top:10px;"><span id="nodeDot" class="dot"></span><span>Orbit</span></div>
   </div>
 
   <!-- Controls -->
@@ -121,8 +121,7 @@
     if (s.online === false) { $("espDot").classList.remove("on"); return; }
     $("espDot").classList.add("on");
     isRunning = !!s.running;
-    $("boardState").textContent = isRunning ? "Active" : "Inactive";
-    $("nodeDot").classList.toggle("on", isRunning);
+    $("nodeDot").classList.toggle("on", isRunning);   // green = Orbit started
     const tb = $("toggleBtn");
     tb.textContent = isRunning ? "■ Stop" : "▶ Start";
     tb.className   = isRunning ? "stop" : "start";
