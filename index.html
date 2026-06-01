@@ -45,6 +45,7 @@
   <!-- Connection -->
   <div class="card">
     <div class="status"><span id="dot" class="dot"></span><span>Cloud</span></div>
+    <div class="status" style="margin-top:10px;"><span id="espDot" class="dot"></span><span>ESP32</span></div>
     <div class="status" style="margin-top:10px;"><span id="nodeDot" class="dot"></span><span id="boardState">—</span></div>
   </div>
 
@@ -114,13 +115,13 @@
     if (topic !== TOPIC_STATE) return;
     let s;
     try { s = JSON.parse(msg.toString()); } catch { return; }
-    if (s.online === false) {
-      $("boardState").textContent = "offline";
-      $("nodeDot").classList.remove("on");
-      return;
-    }
+    // Last-will (online:false) = the ESP32 has dropped off / powered down.
+    // Leave the Active/Inactive line as-is so it doesn't flicker during the
+    // brief reboots a tap can cause — the ESP32 dot tells the real story.
+    if (s.online === false) { $("espDot").classList.remove("on"); return; }
+    $("espDot").classList.add("on");
     isRunning = !!s.running;
-    $("boardState").textContent = isRunning ? "running" : "stopped";
+    $("boardState").textContent = isRunning ? "Active" : "Inactive";
     $("nodeDot").classList.toggle("on", isRunning);
     const tb = $("toggleBtn");
     tb.textContent = isRunning ? "■ Stop" : "▶ Start";
