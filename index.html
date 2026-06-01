@@ -73,6 +73,26 @@
       <div><button class="stop"  onclick="setRunning(false)">■ Stop</button></div>
     </div>
   </div>
+
+  <!-- Workday -->
+  <div class="card">
+    <div class="row">
+      <div>
+        <label>Work start</label>
+        <input id="workStart" type="time" value="09:00" />
+      </div>
+      <div>
+        <label>Work end</label>
+        <input id="workEnd" type="time" value="17:00" />
+      </div>
+    </div>
+    <button class="send" onclick="startWorkday()">▶ Simulate workday</button>
+    <div class="sub" style="margin:10px 0 0;">
+      Runs a natural rhythm for the day: jittered cadence, a lunch pause
+      (12:00–13:00) and occasional short breaks, then stops on its own at
+      Work end. Keeps going even if you close this page.
+    </div>
+  </div>
 </div>
 
 <!-- client -->
@@ -114,12 +134,19 @@
     let s;
     try { s = JSON.parse(msg.toString()); } catch { return; }
     if (s.online === false) { $("boardState").textContent = "OFFLINE"; return; }
-    $("boardState").textContent = s.running ? "RUNNING ▶" : "stopped";
+    if (s.workday) {
+      $("boardState").textContent = "WORKDAY" + (s.phase ? " · " + s.phase : "");
+    } else {
+      $("boardState").textContent = s.running ? "RUNNING ▶" : "stopped";
+    }
     if (s.rssi !== undefined) $("rssi").textContent = s.rssi + " dBm";
     // Reflect the node's actual values into the inputs
     if (s.intervalMs !== undefined) $("interval").value = (s.intervalMs / 60000);
     if (s.angle      !== undefined) $("angle").value    = s.angle;
-    if (s.stopAt && s.stopAt > 0) {
+    const hhmm = ep => new Date(ep * 1000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    if (s.workday && s.workEnd > 0) {
+      $("stopState").textContent = "workday until " + hhmm(s.workEnd);
+    } else if (s.stopAt && s.stopAt > 0) {
       const d = new Date(s.stopAt * 1000);
       $("stopState").textContent = d.toLocaleString([], {weekday:'short', hour:'2-digit', minute:'2-digit'});
     } else {
@@ -147,9 +174,32 @@
     return Math.floor(d.getTime() / 1000);
   }
 
+  // Turn an "HH:MM" field into an absolute epoch (seconds) for today, in the
+  // browser's local timezone. The device just compares epochs — no TZ math on it.
+  function timeToEpochToday(hhmm, fallback) {
+    const [h, m] = (hhmm || fallback).split(":").map(Number);
+    const d = new Date();
+    d.setHours(h, m, 0, 0);
+    return Math.floor(d.getTime() / 1000);
+  }
+
   function sendConfig()   { pub(configPayload()); }
   function trigger()      { pub({ ...configPayload(), trigger: true }); }
-  function setRunning(on) { pub({ ...configPayload(), running: on, stopAt: on ? computeStopAt() : 0 }); }
+  function setRunning(on) { pub({ ...configPayload(), running: on, workday: false, stopAt: on ? computeStopAt() : 0 }); }
+
+  // Hand the device today's work-window boundaries and let it run the rhythm.
+  function startWorkday() {
+    pub({
+      ...configPayload(),                                  // cadence + angle
+      workday: true,
+      running: true,
+      workStart:  timeToEpochToday($("workStart").value, "09:00"),
+      workEnd:    timeToEpochToday($("workEnd").value,   "17:00"),
+      lunchStart: timeToEpochToday("12:00"),
+      lunchEnd:   timeToEpochToday("13:00"),
+      stopAt: 0,                                           // workEnd is the stop
+    });
+  }
 </script>
 </body>
 </html>
